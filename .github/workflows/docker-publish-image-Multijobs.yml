@@ -7,7 +7,7 @@ on:
   # Triggers the workflow on push or pull request events but only for the master branch
   push:
   # Use the branches filter when you need to filter branches for positive matches and exclude branches
-    branches: [ master ] # Assume docker-demo = feature & docs-demo = develop branch
+    branches: [ docker-demo, docs-demo ] # Assume docker-demo = feature & docs-demo = develop branch
   # Use the branches-ignore filter when you only need to exclude branch names
   #  branches-ignore: [ master ]
   
@@ -20,16 +20,24 @@ jobs:
   build:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
-
+  
+  job1:
+    name: Get Current branch name
+    outputs:
+      extract_branch: ${{ steps.extract_branch.outputs.branch }}
+    steps:
+      - name: Current Branch
+        id: extract_branch
+        run: echo "::set-output name=branch::$(echo ${GITHUB_REF##*/})"
+  
+  job2:
+  needs: job1
+  name: Build & push docker image 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Check Out Repo
         uses: actions/checkout@v2
-
-      - name: Get Current Branch Name
-        id: extract_branch
-        run: echo "::set-output name=branch::$(echo ${GITHUB_REF##*/})"
 
       # Runs a single command using the runners shell
       - name: Login to Docker Hub
@@ -38,11 +46,6 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      # Runs a set of commands using the runners shell
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v1
-
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@v2
@@ -50,7 +53,7 @@ jobs:
           context: ./
           file: ./Dockerfile
           push: true
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/demo-image-repo:${{ steps.extract_branch.outputs.branch }}
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/demo-image-repo:${{ needs.job1.outputs.extract_branch }}
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
